@@ -224,7 +224,7 @@ impl MongoBinary {
         }
 
         if ubuntu_year >= 21 {
-            return Ok(("ubuntu2004".to_string(), arch));
+            return Ok(("ubuntu2204".to_string(), arch));
         }
 
         return Ok((format!("ubuntu{}04", ubuntu_year), arch));
