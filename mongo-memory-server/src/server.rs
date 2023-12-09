@@ -11,7 +11,7 @@ use semver::Version;
 use tempfile::TempDir;
 
 /// This version constant should correspond to the latest stable version of `MongoDB`
-const DEFAULT_MONGODB_VERSION: &str = "4.4.0";
+const DEFAULT_MONGODB_VERSION: &str = "7.0.4";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MongoServerStatus {
