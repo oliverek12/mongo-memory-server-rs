@@ -159,11 +159,12 @@ impl MongoBinary {
         let os_version = self.os_info.version();
         let ubuntu_os = match os_info.os_type() {
             OsType::Ubuntu | OsType::Pop => {
-                if let os_info::Version::Rolling(Some(version)) = os_version {
-                    version
-                } else {
-                    CURRENT_UBUNTU_LTS_VERSION
-                }
+                // if let os_info::Version::Rolling(Some(version)) = os_version {
+                //     version
+                // } else {
+                //     CURRENT_UBUNTU_LTS_VERSION
+                // }
+                CURRENT_UBUNTU_LTS_VERSION
             }
             OsType::Mint => {
                 if let os_info::Version::Custom(version) = os_version {

@@ -1,6 +1,9 @@
 use crate::download::{BinaryDownload, MongoBinary};
 use crate::error::MemoryServerError;
 
+use std::fs::File;
+use std::io::Write;
+
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Stdio};
@@ -161,6 +164,8 @@ impl MongoServer {
         let binary = &self.binary;
         let os_info = binary.os_info().clone();
 
+        // println!()
+
         if !binary.is_present(download_dir).unwrap() {
             let binary_download = BinaryDownload::new(os_info, mongo_version, arch).unwrap();
             let archive_name = binary.archive_name().unwrap();
@@ -202,12 +207,20 @@ impl MongoServer {
 
         self.child = Some(child);
 
-        loop {
-            let status = self.status.lock().unwrap();
-            if *status == MongoServerStatus::Ready {
-                break;
+        let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .append(true) // This is needed to append to file
+        .open("/dev/null")
+        .unwrap();
+       write!(file, "here1");
+       loop {
+           let status = self.status.lock().unwrap();
+           if *status == MongoServerStatus::Ready {
+               break;
             }
         }
+        write!(file, "here2");
+        
 
         Ok(())
     }
@@ -267,6 +280,17 @@ lazy_static::lazy_static! {
 
 fn stdout_handler(buf: String, status: Arc<Mutex<MongoServerStatus>>) {
     let buf_str = buf.as_str();
+    let mut file = std::fs::OpenOptions::new()
+    .write(true)
+    .append(true) // This is needed to append to file
+    .open("/tmp/trash")
+    .unwrap();
+//    file.write_all(b"to append");
+ // or
+   write!(file, "{}",buf_str);
+//  write!(file, );
+
+
 
     let mut status = status.lock().unwrap();
 
