@@ -6,13 +6,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use log::{debug, error};
 use regex::Regex;
 use semver::Version;
 use tempfile::TempDir;
 
 /// This version constant should correspond to the latest stable version of `MongoDB`
-const DEFAULT_MONGODB_VERSION: &str = "5.2.0";
+const DEFAULT_MONGODB_VERSION: &str = "4.4.0";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MongoServerStatus {
@@ -93,11 +92,6 @@ impl MongoOptionsBuilder {
         self
     }
 
-    pub fn version(mut self, version: &str) -> Self {
-        self.options.version = Version::parse(version).unwrap();
-        self
-    }
-
     pub fn init_database<S: Into<String>>(mut self, init_database: S) -> Self {
         self.options.init_database = init_database.into();
         self
@@ -138,8 +132,6 @@ impl MongoServer {
         let os_info = os_info::get();
         let arch = env!("TARGET_ARCH").to_string();
 
-        println!("{:?}", os_info);
-
         let binary = MongoBinary::new(os_info, options.version.clone(), arch.clone()).unwrap();
 
         Ok(Self {
@@ -158,8 +150,8 @@ impl MongoServer {
         let download_dir = &options.download_dir;
         let working_dir = download_dir.join(self.binary.archive_name()?).join("bin");
 
-        debug!("download directory: {:?}", download_dir);
-        debug!("working directory: {:?}", working_dir);
+        println!("Download directory: {:?}", download_dir);
+        println!("Working directory: {:?}", working_dir);
 
         let mongo_version = options.version.clone();
 
@@ -185,11 +177,6 @@ impl MongoServer {
         #[cfg(target_family = "unix")]
         let service_binary_path = working_dir.join("mongod");
 
-        {
-            let mut status = self.status.lock().unwrap();
-            *status = MongoServerStatus::Starting;
-        }
-
         let mut child = std::process::Command::new(service_binary_path)
             .arg("--dbpath")
             .arg(data_dir)
@@ -200,11 +187,16 @@ impl MongoServer {
             .arg("--port")
             .arg(self.options.port.to_string().as_str())
             .arg("--noauth")
-            .arg("--journal")
+            .arg("--journal").arg("--replSet").arg("rs0")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
+
+        {
+            let mut status = self.status.lock().unwrap();
+            *status = MongoServerStatus::Starting;
+        }
 
         listen_on_events(&mut child, self.status.clone());
 
@@ -253,25 +245,15 @@ impl Drop for MongoServer {
 
 fn listen_on_events(child: &mut Child, status: Arc<Mutex<MongoServerStatus>>) {
     let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
 
     thread::spawn(move || {
-        let stdout_reader = BufReader::new(stdout);
+        let mut stdout_reader = BufReader::new(stdout);
 
-        for result in stdout_reader.lines() {
-            match result {
-                Ok(line) => stdout_handler(line, status.clone()),
-                Err(_) => unreachable!(),
-            }
-        }
-    });
+        loop {
+            let mut stdout_buf = String::new();
 
-    thread::spawn(move || {
-        let stderr_reader = BufReader::new(stderr);
-
-        for result in stderr_reader.lines() {
-            match result {
-                Ok(line) => stderr_handler(line),
+            match stdout_reader.read_line(&mut stdout_buf) {
+                Ok(_) => stdout_handler(stdout_buf, status.clone()),
                 Err(_) => unreachable!(),
             }
         }
@@ -286,20 +268,10 @@ lazy_static::lazy_static! {
 fn stdout_handler(buf: String, status: Arc<Mutex<MongoServerStatus>>) {
     let buf_str = buf.as_str();
 
-    if !buf.is_empty() {
-        debug!("mongo server: {}", buf_str);
+    let mut status = status.lock().unwrap();
 
-        let mut status = status.lock().unwrap();
-
-        if RE_READY.is_match(buf_str) {
-            *status = MongoServerStatus::Ready;
-        }
-    }
-}
-
-fn stderr_handler(buf: String) {
-    if !buf.is_empty() {
-        error!("mongo server error: {}", buf);
+    if RE_READY.is_match(buf_str) {
+        *status = MongoServerStatus::Ready;
     }
 }
 
