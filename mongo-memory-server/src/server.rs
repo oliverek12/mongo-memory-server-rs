@@ -281,15 +281,21 @@ lazy_static::lazy_static! {
 
 fn stdout_handler(buf: String, status: Arc<Mutex<MongoServerStatus>>) {
     let buf_str = buf.as_str();
-    let mut file = std::fs::OpenOptions::new()
-    .write(true)
-    .append(true) // This is needed to append to file
-    .open("/tmp/trash")
-    .unwrap();
-//    file.write_all(b"to append");
- // or
-   write!(file, "{}",buf_str);
-//  write!(file, );
+    let mut file = match std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open("/tmp/cid_mongodb_tests_debug.log") {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Failed to open log file: {}", e);
+                return;
+            }
+        };
+
+    if let Err(e) = write!(file, "{}", buf_str) {
+        eprintln!("Failed to write to log file: {}", e);
+    }
 
 
 
